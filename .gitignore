@@ -1,0 +1,21 @@
+# Local Supabase credentials — never commit this
+config.js
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
+
+# If you later add a build step / Node tooling
+node_modules/
+dist/
+.env
+.env.local

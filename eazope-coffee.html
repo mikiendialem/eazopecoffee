@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eazope Coffee - Ethiopian Coffee Experience</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <!-- Loads SUPABASE_URL / SUPABASE_ANON_KEY from config.js (gitignored).
+         Copy config.example.js to config.js and fill in your values. -->
+    <script src="config.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; overflow-x: hidden; background: #0a0a0a; color: #f5f5f5; }
+        .font-display { font-family: 'Playfair Display', serif; }
+
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            z-index: 0;
+        }
+
+        .glass-panel {
+            background: rgba(20, 20, 20, 0.6);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .nav-link {
+            position: relative;
+            transition: color 0.3s ease;
+        }
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 0;
+            height: 1px;
+            background: #d4a574;
+            transition: width 0.3s ease;
+        }
+        .nav-link:hover::after { width: 100%; }
+
+        .scroll-section {
+            position: relative;
+            z-index: 10;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .text-glow {
+            text-shadow: 0 0 40px rgba(212, 165, 116, 0.3);
+        }
+
+        .menu-card {
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.4s ease;
+        }
+        .menu-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 20px 40px rgba(212, 165, 116, 0.15);
+        }
+
+        .bean-float {
+            animation: float 6s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(10deg); }
+        }
+
+        /* ===================================================================
+           IMPORTANT FIX: hero text is visible by default (no opacity-0 in the
+           HTML anymore). JS/GSAP only ENHANCES it with a fade-in; if GSAP is
+           slow, blocked, or fails to load, the text still shows immediately.
+           =================================================================== */
+        .hero-anim {
+            opacity: 1;
+            transform: none;
+        }
+
+        /* ===================================================================
+           IMPORTANT FIX: the loading screen now hides itself with plain CSS
+           after 1.6s no matter what JS does. This is a hard safety net so the
+           page can never get stuck on the loader, even if every script on
+           the page fails to execute (blocked CDN, restrictive sandbox, ad
+           blocker, etc). JS still hides it earlier/faster when it can.
+           =================================================================== */
+        #loading {
+            position: fixed;
+            inset: 0;
+            background: #0a0a0a;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            animation: autoHideLoader 0.01s linear 1.6s forwards;
+        }
+        @keyframes autoHideLoader {
+            to {
+                opacity: 0;
+                visibility: hidden;
+                pointer-events: none;
+            }
+        }
+
+        .loader-cup {
+            width: 60px;
+            height: 50px;
+            border: 3px solid #d4a574;
+            border-radius: 0 0 30px 30px;
+            position: relative;
+            animation: fill 2s ease-in-out infinite;
+        }
+        .loader-cup::after {
+            content: '';
+            position: absolute;
+            right: -18px;
+            top: 5px;
+            width: 15px;
+            height: 25px;
+            border: 3px solid #d4a574;
+            border-left: none;
+            border-radius: 0 20px 20px 0;
+        }
+        @keyframes fill {
+            0% { box-shadow: inset 0 0 0 0 #d4a574; }
+            100% { box-shadow: inset 0 -50px 0 0 #d4a574; }
+        }
+
+        .cursor-glow {
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(212, 165, 116, 0.08) 0%, transparent 70%);
+            position: fixed;
+            pointer-events: none;
+            z-index: 5;
+            transform: translate(-50%, -50%);
+            transition: opacity 0.3s ease;
+        }
+
+        /* ===== CART & ORDER SYSTEM ===== */
+        .cart-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(4px);
+            z-index: 55;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .cart-overlay.open { opacity: 1; pointer-events: all; }
+
+        .cart-sidebar {
+            position: fixed;
+            top: 0;
+            right: -420px;
+            width: 420px;
+            max-width: 100%;
+            height: 100vh;
+            z-index: 60;
+            transition: right 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-y: auto;
+        }
+        .cart-sidebar.open { right: 0; }
+
+        .cart-item { transition: all 0.3s ease; }
+        .cart-item:hover { background: rgba(255,255,255,0.03); }
+
+        .quantity-btn {
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #d4a574;
+            font-weight: bold;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .quantity-btn:hover {
+            background: rgba(212, 165, 116, 0.2);
+            border-color: #d4a574;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%) translateY(120px);
+            z-index: 70;
+            transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .toast.show { transform: translateX(-50%) translateY(0); }
+
+        .nav-order-btn { position: relative; cursor: pointer; }
+        .cart-badge {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            background: #d4a574;
+            color: #0a0a0a;
+            font-size: 10px;
+            font-weight: 700;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .cart-badge.show { display: flex; }
+
+        @media (max-width: 640px) {
+            .cart-sidebar { width: 100%; right: -100%; }
+            .cart-sidebar.open { right: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Loading Screen (auto-hides via pure CSS after 1.6s even with no JS at all) -->
+    <div id="loading">
+        <div class="loader-cup mb-6"></div>
+        <p class="text-[#d4a574] text-sm tracking-[0.3em] uppercase">Brewing Experience...</p>
+    </div>
+
+    <!-- Cursor Glow -->
+    <div class="cursor-glow" id="cursorGlow"></div>
+
+    <!-- 3D Canvas -->
+    <div id="canvas-container"></div>
+
+    <!-- Cart Overlay -->
+    <div class="cart-overlay" id="cartOverlay" onclick="toggleCart()"></div>
+
+    <!-- Cart Sidebar -->
+    <div class="cart-sidebar glass-panel border-l border-white/10" id="cartSidebar">
+        <div class="p-6 h-full flex flex-col">
+            <div class="flex items-center justify-between mb-8">
+                <h3 class="font-display text-2xl font-bold text-white">Your Order</h3>
+                <button onclick="toggleCart()" class="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors">
+                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <div id="cartItems" class="flex-1 overflow-y-auto space-y-4 pr-2"></div>
+
+            <div id="cartEmpty" class="flex-1 flex flex-col items-center justify-center text-gray-500">
+                <svg class="w-16 h-16 mb-4 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+                <p class="text-sm tracking-wide">Your cart is empty</p>
+                <button onclick="toggleCart(); document.getElementById('menu').scrollIntoView({behavior:'smooth'})" class="mt-4 text-[#d4a574] text-sm hover:underline">Browse Menu</button>
+            </div>
+
+            <div id="cartFooter" class="mt-6 pt-6 border-t border-white/10 hidden">
+                <div class="flex justify-between items-center mb-6">
+                    <span class="text-gray-400">Total</span>
+                    <span class="text-2xl font-display font-bold text-[#d4a574]" id="cartTotal">0 ETB</span>
+                </div>
+
+                <form id="orderForm" class="space-y-4" onsubmit="submitOrder(event)">
+                    <div>
+                        <label class="block text-xs uppercase tracking-wider text-gray-500 mb-2">Your Name</label>
+                        <input type="text" id="customerName" required class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-[#d4a574] transition-colors" placeholder="Enter your name">
+                    </div>
+                    <div>
+                        <label class="block text-xs uppercase tracking-wider text-gray-500 mb-2">Phone Number</label>
+                        <input type="tel" id="customerPhone" required class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-[#d4a574] transition-colors" placeholder="09XX XXX XXX">
+                    </div>
+                    <div>
+                        <label class="block text-xs uppercase tracking-wider text-gray-500 mb-2">Notes (Optional)</label>
+                        <textarea id="orderNotes" rows="2" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-[#d4a574] transition-colors resize-none" placeholder="Any special requests..."></textarea>
+                    </div>
+                    <button type="submit" id="submitBtn" class="w-full py-4 bg-[#d4a574] text-[#0a0a0a] rounded-full font-semibold hover:bg-[#e8c9a0] transition-all duration-300 transform hover:scale-[1.02] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <span>Place Order</span>
+                        <svg id="btnSpinner" class="w-5 h-5 animate-spin hidden" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast glass-panel px-6 py-4 rounded-2xl border border-[#d4a574]/30" id="toast">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-[#d4a574]/20 flex items-center justify-center text-[#d4a574]" id="toastIcon">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            </div>
+            <div>
+                <p class="text-white font-semibold text-sm" id="toastTitle">Success</p>
+                <p class="text-gray-400 text-xs" id="toastMessage">Your order has been placed!</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="fixed top-0 left-0 right-0 z-50 glass-panel border-b border-white/5">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-[#d4a574] to-[#8b6239] flex items-center justify-center">
+                    <span class="text-white font-bold text-lg">E</span>
+                </div>
+                <span class="font-display text-2xl font-bold text-white tracking-wide">Eazope</span>
+            </div>
+            <div class="hidden md:flex items-center gap-8">
+                <a href="#experience" class="nav-link text-sm tracking-widest uppercase text-gray-300 hover:text-[#d4a574]">Experience</a>
+                <a href="#menu" class="nav-link text-sm tracking-widest uppercase text-gray-300 hover:text-[#d4a574]">Menu</a>
+                <a href="#craft" class="nav-link text-sm tracking-widest uppercase text-gray-300 hover:text-[#d4a574]">Craft</a>
+                <a href="#visit" class="nav-link text-sm tracking-widest uppercase text-gray-300 hover:text-[#d4a574]">Visit</a>
+            </div>
+            <button onclick="toggleCart()" class="nav-order-btn px-6 py-2 bg-[#d4a574] text-[#0a0a0a] rounded-full text-sm font-semibold hover:bg-[#e8c9a0] transition-all duration-300 transform hover:scale-105">
+                Order Now
+                <span class="cart-badge" id="cartBadge">0</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="scroll-section" id="experience">
+        <div class="relative z-10 text-center px-6 max-w-5xl mx-auto mt-20">
+            <div class="overflow-hidden mb-4">
+                <p class="hero-anim text-[#d4a574] text-sm md:text-base tracking-[0.5em] uppercase" id="hero-subtitle">
+                    Ethiopian Coffee Experience
+                </p>
+            </div>
+            <h1 class="hero-anim font-display text-6xl md:text-8xl lg:text-9xl font-black text-white mb-6 leading-tight text-glow" id="hero-title">
+                EAZOPE<br/><span class="text-[#d4a574]">COFFEE</span>
+            </h1>
+            <p class="hero-anim text-gray-400 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed" id="hero-desc">
+                Step into a world where every bean tells a story.
+            </p>
+            <div class="hero-anim flex gap-4 justify-center" id="hero-cta">
+                <a href="#menu" class="px-8 py-4 bg-[#d4a574] text-[#0a0a0a] rounded-full font-semibold hover:bg-[#e8c9a0] transition-all duration-300 transform hover:scale-105 shadow-lg shadow-[#d4a574]/20 inline-block text-center">
+                    Explore Menu
+                </a>
+                <a href="#craft" class="px-8 py-4 border border-white/20 text-white rounded-full font-semibold hover:bg-white/10 transition-all duration-300 backdrop-blur-sm inline-block text-center">
+                    Our Story
+                </a>
+            </div>
+        </div>
+        <div class="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 opacity-50">
+            <span class="text-xs tracking-widest uppercase text-gray-400">Scroll</span>
+            <div class="w-px h-12 bg-gradient-to-b from-[#d4a574] to-transparent"></div>
+        </div>
+    </section>
+
+    <!-- Menu Section -->
+    <section class="scroll-section py-32" id="menu">
+        <div class="relative z-10 max-w-7xl mx-auto px-6 w-full">
+            <div class="text-center mb-20">
+                <p class="text-[#d4a574] text-sm tracking-[0.4em] uppercase mb-4">Curated Selection</p>
+                <h2 class="font-display text-5xl md:text-7xl font-bold text-white mb-6">Signature Brews</h2>
+                <div class="w-24 h-px bg-gradient-to-r from-transparent via-[#d4a574] to-transparent mx-auto"></div>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="menu-card glass-panel rounded-3xl p-8 relative overflow-hidden group">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-[#d4a574]/10 rounded-full blur-3xl group-hover:bg-[#d4a574]/20 transition-all duration-500"></div>
+                    <div class="text-5xl mb-6">☕</div>
+                    <h3 class="font-display text-2xl font-bold text-white mb-3">Velvet Espresso</h3>
+                    <p class="text-gray-400 mb-6 leading-relaxed">A rich, full-bodied extraction with notes of dark chocolate and caramel. Served with our signature crema art.</p>
+                    <div class="flex items-center justify-between">
+                        <span class="text-[#d4a574] text-2xl font-display font-bold">100 ETB</span>
+                        <button onclick="addToCart('Velvet Espresso', 100)" class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-[#d4a574] hover:text-[#0a0a0a] transition-all duration-300">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="menu-card glass-panel rounded-3xl p-8 relative overflow-hidden group">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-[#d4a574]/10 rounded-full blur-3xl group-hover:bg-[#d4a574]/20 transition-all duration-500"></div>
+                    <div class="text-5xl mb-6">🥛</div>
+                    <h3 class="font-display text-2xl font-bold text-white mb-3">3D Latte Art</h3>
+                    <p class="text-gray-400 mb-6 leading-relaxed">Steamed milk poured over double espresso, featuring our unique three-dimensional foam sculptures.</p>
+                    <div class="flex items-center justify-between">
+                        <span class="text-[#d4a574] text-2xl font-display font-bold">195 ETB</span>
+                        <button onclick="addToCart('3D Latte Art', 195)" class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-[#d4a574] hover:text-[#0a0a0a] transition-all duration-300">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="menu-card glass-panel rounded-3xl p-8 relative overflow-hidden group">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-[#d4a574]/10 rounded-full blur-3xl group-hover:bg-[#d4a574]/20 transition-all duration-500"></div>
+                    <div class="text-5xl mb-6">❄️</div>
+                    <h3 class="font-display text-2xl font-bold text-white mb-3">Dimension Cold Brew</h3>
+                    <p class="text-gray-400 mb-6 leading-relaxed">24-hour steeped cold brew with layered flavors of vanilla, oak, and berry. Served in a geometric glass.</p>
+                    <div class="flex items-center justify-between">
+                        <span class="text-[#d4a574] text-2xl font-display font-bold">280 ETB</span>
+                        <button onclick="addToCart('Dimension Cold Brew', 280)" class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-[#d4a574] hover:text-[#0a0a0a] transition-all duration-300">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Craft Section -->
+    <section class="scroll-section py-32" id="craft">
+        <div class="relative z-10 max-w-7xl mx-auto px-6 w-full">
+            <div class="grid md:grid-cols-2 gap-16 items-center">
+                <div>
+                    <p class="text-[#d4a574] text-sm tracking-[0.4em] uppercase mb-4">The Process</p>
+                    <h2 class="font-display text-5xl md:text-6xl font-bold text-white mb-8 leading-tight">Crafted in<br/>Ethiopian Tradition</h2>
+                    <div class="space-y-6">
+                        <div class="flex gap-6 items-start">
+                            <div class="w-12 h-12 rounded-2xl bg-[#d4a574]/20 flex items-center justify-center text-[#d4a574] font-bold text-lg shrink-0">01</div>
+                            <div>
+                                <h4 class="text-white font-semibold text-lg mb-2">Depth of Origin</h4>
+                                <p class="text-gray-400 leading-relaxed">We source beans from three distinct altitudes, creating a depth of flavor that unfolds with every sip.</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-6 items-start">
+                            <div class="w-12 h-12 rounded-2xl bg-[#d4a574]/20 flex items-center justify-center text-[#d4a574] font-bold text-lg shrink-0">02</div>
+                            <div>
+                                <h4 class="text-white font-semibold text-lg mb-2">Spatial Roasting</h4>
+                                <p class="text-gray-400 leading-relaxed">Our multi-dimensional roasting technique ensures heat penetrates evenly from all angles, unlocking hidden notes.</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-6 items-start">
+                            <div class="w-12 h-12 rounded-2xl bg-[#d4a574]/20 flex items-center justify-center text-[#d4a574] font-bold text-lg shrink-0">03</div>
+                            <div>
+                                <h4 class="text-white font-semibold text-lg mb-2">Holographic Presentation</h4>
+                                <p class="text-gray-400 leading-relaxed">Each cup is presented as a work of art, with layers of foam, spice, and aroma creating a sensory sculpture.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="relative">
+                    <div class="aspect-square rounded-full bg-gradient-to-br from-[#d4a574]/20 to-transparent blur-3xl absolute inset-0"></div>
+                    <div class="glass-panel rounded-3xl p-8 relative z-10">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-white/5 rounded-2xl p-6 text-center bean-float" style="animation-delay: 0s;">
+                                <div class="text-4xl mb-2">🌱</div>
+                                <div class="text-[#d4a574] font-bold text-2xl font-display">12+</div>
+                                <div class="text-gray-400 text-sm">Origins</div>
+                            </div>
+                            <div class="bg-white/5 rounded-2xl p-6 text-center bean-float" style="animation-delay: 1s;">
+                                <div class="text-4xl mb-2">⏱️</div>
+                                <div class="text-[#d4a574] font-bold text-2xl font-display">24h</div>
+                                <div class="text-gray-400 text-sm">Cold Brew</div>
+                            </div>
+                            <div class="bg-white/5 rounded-2xl p-6 text-center bean-float" style="animation-delay: 2s;">
+                                <div class="text-4xl mb-2">🎨</div>
+                                <div class="text-[#d4a574] font-bold text-2xl font-display">Beautiful</div>
+                                <div class="text-gray-400 text-sm">Latte Art</div>
+                            </div>
+                            <div class="bg-white/5 rounded-2xl p-6 text-center bean-float" style="animation-delay: 3s;">
+                                <div class="text-4xl mb-2">☕</div>
+                                <div class="text-[#d4a574] font-bold text-2xl font-display">98°C</div>
+                                <div class="text-gray-400 text-sm">Precision</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Visit Section -->
+    <section class="scroll-section py-32" id="visit">
+        <div class="relative z-10 max-w-4xl mx-auto px-6 text-center w-full">
+            <p class="text-[#d4a574] text-sm tracking-[0.4em] uppercase mb-4">Find Us</p>
+            <h2 class="font-display text-5xl md:text-7xl font-bold text-white mb-8">Visit Eazope</h2>
+            <p class="text-gray-400 text-lg mb-12 max-w-2xl mx-auto">
+                Experience the coffee at our flagship location. Where architecture meets aroma.
+            </p>
+
+            <div class="glass-panel rounded-3xl p-8 md:p-12 inline-block w-full max-w-2xl">
+                <div class="grid md:grid-cols-2 gap-8 text-left">
+                    <div>
+                        <h4 class="text-white font-semibold mb-4 text-lg">Location</h4>
+                        <p class="text-gray-400 leading-relaxed mb-2">Megenagna, Addis Ababa</p>
+                        <p class="text-gray-400 leading-relaxed">Around City mall, Addis Ababa</p>
+                    </div>
+                    <div>
+                        <h4 class="text-white font-semibold mb-4 text-lg">Hours</h4>
+                        <p class="text-gray-400 leading-relaxed mb-2">Mon - Fri: 7am - 8pm</p>
+                        <p class="text-gray-400 leading-relaxed">Sat - Sun: 8am - 10pm</p>
+                    </div>
+                </div>
+                <div class="mt-8 pt-8 border-t border-white/10">
+                    <a href="https://maps.app.goo.gl/utEx5xUpgXr47vvN6" target="_blank" rel="noopener noreferrer" class="w-full py-4 bg-[#d4a574] text-[#0a0a0a] rounded-full font-semibold hover:bg-[#e8c9a0] transition-all duration-300 transform hover:scale-[1.02] inline-block text-center">
+                        Get Directions
+                    </a>
+                </div>
+            </div>
+
+            <div class="mt-20 flex justify-center gap-6">
+                <a href="#" class="w-12 h-12 rounded-full glass-panel flex items-center justify-center text-gray-400 hover:text-[#d4a574] hover:border-[#d4a574]/50 transition-all duration-300">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.141a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+                    </svg>
+                </a>
+                <a href="#" class="w-12 h-12 rounded-full glass-panel flex items-center justify-center text-gray-400 hover:text-[#d4a574] hover:border-[#d4a574]/50 transition-all duration-300">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="relative z-10 py-12 border-t border-white/5">
+        <div class="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-[#d4a574] to-[#8b6239] flex items-center justify-center">
+                    <span class="text-white font-bold text-sm">E</span>
+                </div>
+                <span class="font-display text-xl font-bold text-white">Eazope Coffee</span>
+            </div>
+            <p class="text-gray-500 text-sm">© 2026 Eazope Coffee. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        // ==================== GLOBAL SAFETY NET ====================
+        // If literally anything throws anywhere in this script, make sure the
+        // loading screen is still gone. The CSS animation is the true
+        // guarantee (works even if this whole <script> tag never runs), this
+        // is just a faster JS-side path when JS does run.
+        function dismissLoading() {
+            try {
+                const loader = document.getElementById('loading');
+                if (loader) {
+                    loader.style.transition = 'opacity 0.4s ease';
+                    loader.style.opacity = '0';
+                    loader.style.pointerEvents = 'none';
+                    setTimeout(() => loader.remove(), 400);
+                }
+            } catch (e) {
+                console.error('dismissLoading error:', e);
+            }
+        }
+        window.addEventListener('error', dismissLoading, { once: true });
+
+        // Script runs at the end of <body>, so the DOM already exists here —
+        // dismiss right away instead of waiting on DOMContentLoaded.
+        dismissLoading();
+
+        // ==================== SAFE SUPABASE INIT ====================
+        // Credentials come from config.js (gitignored) — see config.example.js
+        const cfg = window.EAZOPE_CONFIG || {};
+        const SUPABASE_URL = cfg.SUPABASE_URL;
+        const SUPABASE_ANON_KEY = cfg.SUPABASE_ANON_KEY;
+
+        // NOTE: intentionally NOT named `supabase` — the Supabase CDN script
+        // already creates a global called `window.supabase`, and declaring
+        // `let supabase` here collides with it and throws a SyntaxError that
+        // kills this entire script block before anything runs.
+        let supabaseClient = null;
+        try {
+            if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+                console.warn('Missing config.js — copy config.example.js to config.js and fill in your Supabase project values.');
+            } else if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                console.log('Supabase connected');
+            } else {
+                console.warn('Supabase library not loaded yet');
+            }
+        } catch (e) {
+            console.error('Supabase init error:', e);
+        }
+
+        // ==================== CART STATE ====================
+        let cart = [];
+
+        function toggleCart() {
+            document.getElementById('cartSidebar').classList.toggle('open');
+            document.getElementById('cartOverlay').classList.toggle('open');
+            document.body.style.overflow = document.getElementById('cartSidebar').classList.contains('open') ? 'hidden' : '';
+            renderCart();
+        }
+
+        function addToCart(name, price) {
+            const existing = cart.find(item => item.name === name);
+            if (existing) {
+                existing.quantity++;
+            } else {
+                cart.push({ name, price, quantity: 1 });
+            }
+            updateBadge();
+            showToast('Added to Cart', `${name} added to your order`);
+            renderCart();
+        }
+
+        function removeFromCart(index) {
+            cart.splice(index, 1);
+            updateBadge();
+            renderCart();
+        }
+
+        function updateQuantity(index, delta) {
+            cart[index].quantity += delta;
+            if (cart[index].quantity <= 0) {
+                cart.splice(index, 1);
+            }
+            updateBadge();
+            renderCart();
+        }
+
+        function updateBadge() {
+            const total = cart.reduce((sum, item) => sum + item.quantity, 0);
+            const badge = document.getElementById('cartBadge');
+            badge.textContent = total;
+            badge.classList.toggle('show', total > 0);
+        }
+
+        function renderCart() {
+            const container = document.getElementById('cartItems');
+            const empty = document.getElementById('cartEmpty');
+            const footer = document.getElementById('cartFooter');
+
+            if (cart.length === 0) {
+                container.innerHTML = '';
+                empty.classList.remove('hidden');
+                footer.classList.add('hidden');
+                return;
+            }
+
+            empty.classList.add('hidden');
+            footer.classList.remove('hidden');
+
+            let total = 0;
+            container.innerHTML = cart.map((item, i) => {
+                total += item.price * item.quantity;
+                return `
+                    <div class="cart-item flex items-center gap-4 p-4 rounded-2xl bg-white/5">
+                        <div class="flex-1 min-w-0">
+                            <h4 class="text-white font-semibold text-sm truncate">${item.name}</h4>
+                            <p class="text-[#d4a574] text-sm">${item.price} ETB each</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="updateQuantity(${i}, -1)" class="quantity-btn">−</button>
+                            <span class="text-white font-semibold w-6 text-center text-sm">${item.quantity}</span>
+                            <button type="button" onclick="updateQuantity(${i}, 1)" class="quantity-btn">+</button>
+                        </div>
+                        <button type="button" onclick="removeFromCart(${i})" class="ml-2 text-gray-500 hover:text-red-400 transition-colors p-1">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('cartTotal').textContent = total.toLocaleString() + ' ETB';
+        }
+
+        async function submitOrder(e) {
+            e.preventDefault();
+
+            if (cart.length === 0) {
+                showToast('Error', 'Your cart is empty');
+                return;
+            }
+
+            const name = document.getElementById('customerName').value.trim();
+            const phone = document.getElementById('customerPhone').value.trim();
+            const notes = document.getElementById('orderNotes').value.trim();
+            const btn = document.getElementById('submitBtn');
+            const spinner = document.getElementById('btnSpinner');
+
+            if (!supabaseClient) {
+                showToast('Error', 'Supabase not configured. Check console.');
+                return;
+            }
+
+            btn.disabled = true;
+            spinner.classList.remove('hidden');
+
+            const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+            try {
+                const { error } = await supabaseClient
+                    .from('orders')
+                    .insert([
+                        {
+                            customer_name: name,
+                            customer_phone: phone,
+                            items: cart,
+                            total_amount: total,
+                            notes: notes || null,
+                            status: 'pending'
+                        }
+                    ]);
+
+                if (error) throw error;
+
+                showToast('Order Placed!', 'We will contact you shortly to confirm.');
+                cart = [];
+                updateBadge();
+                renderCart();
+                document.getElementById('orderForm').reset();
+                setTimeout(toggleCart, 2000);
+
+            } catch (err) {
+                console.error(err);
+                showToast('Error', 'Could not place order. Please try again.');
+            } finally {
+                btn.disabled = false;
+                spinner.classList.add('hidden');
+            }
+        }
+
+        function showToast(title, message) {
+            document.getElementById('toastTitle').textContent = title;
+            document.getElementById('toastMessage').textContent = message;
+
+            const icon = document.getElementById('toastIcon');
+            if (title.toLowerCase().includes('error')) {
+                icon.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>';
+                icon.className = 'w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center text-red-400';
+            } else {
+                icon.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>';
+                icon.className = 'w-8 h-8 rounded-full bg-[#d4a574]/20 flex items-center justify-center text-[#d4a574]';
+            }
+
+            const toast = document.getElementById('toast');
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3500);
+        }
+
+        // ==================== CURSOR GLOW ====================
+        document.addEventListener('mousemove', (e) => {
+            const glow = document.getElementById('cursorGlow');
+            if (glow) {
+                glow.style.left = e.clientX + 'px';
+                glow.style.top = e.clientY + 'px';
+            }
+        });
+
+        // ==================== HERO ENTRANCE (progressive enhancement only) ====================
+        // Content is already visible via CSS (.hero-anim has opacity:1). If GSAP
+        // loaded, we replay a quick "from invisible" entrance for polish — but
+        // nothing depends on this succeeding.
+        try {
+            if (typeof gsap !== 'undefined') {
+                gsap.from('#hero-subtitle', { opacity: 0, y: 40, duration: 1 });
+                gsap.from('#hero-title', { opacity: 0, scale: 0.9, duration: 1 });
+                gsap.from('#hero-desc', { opacity: 0, y: 30, duration: 1, delay: 0.1 });
+                gsap.from('#hero-cta', { opacity: 0, y: 30, duration: 1, delay: 0.2 });
+            }
+        } catch (err) {
+            console.error('Hero animation error:', err);
+        }
+
+        // ==================== THREE.JS SCENE (optional 3D background) ====================
+        try {
+            if (typeof THREE === 'undefined') throw new Error('THREE not loaded');
+
+            const scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x0a0a0a, 0.02);
+
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+            scene.add(ambientLight);
+
+            const spotLight = new THREE.SpotLight(0xd4a574, 1.5);
+            spotLight.position.set(5, 10, 5);
+            spotLight.castShadow = true;
+            spotLight.shadow.mapSize.width = 2048;
+            spotLight.shadow.mapSize.height = 2048;
+            scene.add(spotLight);
+
+            const rimLight = new THREE.PointLight(0x8b6239, 0.8);
+            rimLight.position.set(-5, 5, -5);
+            scene.add(rimLight);
+
+            const cupGroup = new THREE.Group();
+            scene.add(cupGroup);
+
+            const cupGeometry = new THREE.CylinderGeometry(1.2, 0.9, 2.5, 32);
+            const cupMaterial = new THREE.MeshPhysicalMaterial({
+                color: 0xf5f5f5,
+                metalness: 0.1,
+                roughness: 0.2,
+                clearcoat: 0.5,
+                clearcoatRoughness: 0.1
+            });
+            const cup = new THREE.Mesh(cupGeometry, cupMaterial);
+            cup.position.y = 1.25;
+            cup.castShadow = true;
+            cup.receiveShadow = true;
+            cupGroup.add(cup);
+
+            const handleGeometry = new THREE.TorusGeometry(0.6, 0.15, 16, 32, Math.PI);
+            const handle = new THREE.Mesh(handleGeometry, cupMaterial);
+            handle.position.set(1.3, 1.5, 0);
+            handle.rotation.z = -Math.PI / 2;
+            handle.castShadow = true;
+            cupGroup.add(handle);
+
+            const liquidGeometry = new THREE.CircleGeometry(1.1, 32);
+            const liquidMaterial = new THREE.MeshPhysicalMaterial({
+                color: 0x3d2314,
+                metalness: 0.3,
+                roughness: 0.1,
+                clearcoat: 1.0,
+                transparent: true,
+                opacity: 0.95
+            });
+            const liquid = new THREE.Mesh(liquidGeometry, liquidMaterial);
+            liquid.rotation.x = -Math.PI / 2;
+            liquid.position.y = 2.4;
+            cupGroup.add(liquid);
+
+            const saucerGeometry = new THREE.CylinderGeometry(2, 1.8, 0.2, 32);
+            const saucer = new THREE.Mesh(saucerGeometry, cupMaterial);
+            saucer.position.y = 0.1;
+            saucer.castShadow = true;
+            saucer.receiveShadow = true;
+            cupGroup.add(saucer);
+
+            const steamParticles = [];
+            const steamGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+            const steamMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.3
+            });
+
+            for (let i = 0; i < 20; i++) {
+                const particle = new THREE.Mesh(steamGeometry, steamMaterial.clone());
+                particle.position.set(
+                    (Math.random() - 0.5) * 0.8,
+                    2.5 + Math.random() * 2,
+                    (Math.random() - 0.5) * 0.8
+                );
+                particle.userData = {
+                    speed: 0.01 + Math.random() * 0.02,
+                    offset: Math.random() * Math.PI * 2,
+                    initialX: particle.position.x,
+                    initialZ: particle.position.z
+                };
+                cupGroup.add(particle);
+                steamParticles.push(particle);
+            }
+
+            const beans = [];
+            const beanGeometry = new THREE.SphereGeometry(0.15, 8, 6);
+            beanGeometry.scale(1, 1.6, 0.8);
+            const beanMaterial = new THREE.MeshStandardMaterial({
+                color: 0x4a2c17,
+                roughness: 0.8,
+                metalness: 0.1
+            });
+
+            for (let i = 0; i < 15; i++) {
+                const bean = new THREE.Mesh(beanGeometry, beanMaterial);
+                const angle = (i / 15) * Math.PI * 2;
+                const radius = 4 + Math.random() * 3;
+                bean.position.set(
+                    Math.cos(angle) * radius,
+                    Math.random() * 4 - 1,
+                    Math.sin(angle) * radius
+                );
+                bean.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+                bean.userData = {
+                    angle: angle,
+                    radius: radius,
+                    speed: 0.002 + Math.random() * 0.003,
+                    yOffset: Math.random() * Math.PI * 2,
+                    rotSpeed: {
+                        x: (Math.random() - 0.5) * 0.02,
+                        y: (Math.random() - 0.5) * 0.02,
+                        z: (Math.random() - 0.5) * 0.02
+                    }
+                };
+                bean.castShadow = true;
+                scene.add(bean);
+                beans.push(bean);
+            }
+
+            const planeGeometry = new THREE.PlaneGeometry(50, 50);
+            const planeMaterial = new THREE.MeshStandardMaterial({
+                color: 0x0a0a0a,
+                roughness: 0.8,
+                metalness: 0.2
+            });
+            const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+            plane.rotation.x = -Math.PI / 2;
+            plane.position.y = -0.1;
+            plane.receiveShadow = true;
+            scene.add(plane);
+
+            camera.position.set(0, 3, 6);
+            camera.lookAt(0, 1, 0);
+
+            let mouseX = 0;
+            let mouseY = 0;
+            let targetRotationX = 0;
+            let targetRotationY = 0;
+
+            document.addEventListener('mousemove', (e) => {
+                mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+                mouseY = (e.clientY / window.innerHeight) * 2 - 1;
+            });
+
+            let scrollY = 0;
+            window.addEventListener('scroll', () => {
+                scrollY = window.scrollY;
+            });
+
+            const clock = new THREE.Clock();
+
+            function animate() {
+                requestAnimationFrame(animate);
+                const time = clock.getElapsedTime();
+
+                targetRotationX = mouseY * 0.3;
+                targetRotationY = mouseX * 0.5;
+
+                cupGroup.rotation.x += (targetRotationX - cupGroup.rotation.x) * 0.05;
+                cupGroup.rotation.y += (targetRotationY - cupGroup.rotation.y) * 0.05;
+
+                cupGroup.position.y = Math.sin(time * 0.5) * 0.1;
+
+                steamParticles.forEach((particle) => {
+                    particle.position.y += particle.userData.speed;
+                    particle.position.x = particle.userData.initialX + Math.sin(time * 2 + particle.userData.offset) * 0.2;
+                    particle.position.z = particle.userData.initialZ + Math.cos(time * 1.5 + particle.userData.offset) * 0.2;
+
+                    const life = (particle.position.y - 2.5) / 2;
+                    particle.material.opacity = 0.3 * (1 - life);
+                    particle.scale.setScalar(1 + life * 2);
+
+                    if (particle.position.y > 4.5) {
+                        particle.position.y = 2.5;
+                        particle.material.opacity = 0.3;
+                        particle.scale.setScalar(1);
+                    }
+                });
+
+                beans.forEach(bean => {
+                    bean.userData.angle += bean.userData.speed;
+                    bean.position.x = Math.cos(bean.userData.angle) * bean.userData.radius;
+                    bean.position.z = Math.sin(bean.userData.angle) * bean.userData.radius;
+                    bean.position.y = Math.sin(time + bean.userData.yOffset) * 0.5;
+
+                    bean.rotation.x += bean.userData.rotSpeed.x;
+                    bean.rotation.y += bean.userData.rotSpeed.y;
+                    bean.rotation.z += bean.userData.rotSpeed.z;
+                });
+
+                const scrollProgress = Math.min(scrollY / (document.body.scrollHeight - window.innerHeight), 1);
+                camera.position.y = 3 + scrollProgress * 2;
+                camera.position.z = 6 - scrollProgress * 2;
+                camera.lookAt(0, 1 + scrollProgress, 0);
+
+                renderer.render(scene, camera);
+            }
+
+            animate();
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        } catch (err) {
+            console.error('Three.js error (page still works without the 3D background):', err);
+        }
+
+        // ==================== GSAP SCROLL TRIGGERS (optional polish) ====================
+        try {
+            if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') {
+                gsap.registerPlugin(ScrollTrigger);
+
+                gsap.utils.toArray('.menu-card').forEach((card, i) => {
+                    gsap.from(card, {
+                        scrollTrigger: {
+                            trigger: card,
+                            start: 'top 85%',
+                            toggleActions: 'play none none reverse'
+                        },
+                        y: 60,
+                        opacity: 0,
+                        duration: 0.8,
+                        delay: i * 0.2,
+                        ease: 'power3.out'
+                    });
+                });
+
+                gsap.from('#craft .space-y-6 > div', {
+                    scrollTrigger: { trigger: '#craft', start: 'top 70%' },
+                    x: -40,
+                    opacity: 0,
+                    duration: 0.8,
+                    stagger: 0.2,
+                    ease: 'power3.out'
+                });
+
+                gsap.from('#craft .glass-panel', {
+                    scrollTrigger: { trigger: '#craft', start: 'top 70%' },
+                    x: 40,
+                    opacity: 0,
+                    duration: 1,
+                    ease: 'power3.out'
+                });
+            }
+        } catch (err) {
+            console.error('GSAP scroll trigger error (page still works without these animations):', err);
+        }
+
+        // ==================== SMOOTH SCROLL ====================
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+    </script>
+</body>
+</html>
