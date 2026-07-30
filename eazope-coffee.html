@@ -282,6 +282,57 @@
                         <input type="tel" id="customerPhone" required class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-[#d4a574] transition-colors" placeholder="09XX XXX XXX">
                     </div>
                     <div>
+                        <label class="block text-xs uppercase tracking-wider text-gray-500 mb-2">
+                            Order Type
+                        </label>
+                        <select 
+                            id="orderType"
+                            onchange="changeOrderType()"
+                            class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white">
+                            <option value="dine_in">
+                                🍽 Dine In
+                            </option>
+                            <option value="delivery">
+                                🚚 Delivery
+                            </option>
+                        </select>
+                    </div>
+                    <div id="tableSection">
+                        <label class="block text-xs uppercase tracking-wider text-gray-500 mb-2">
+                            Table Number
+                        </label>
+                        <select
+                            id="tableNumber"
+                            class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white">
+                            <option value="1">
+                                Table 1
+                            </option>
+                            <option value="2">
+                                Table 2
+                            </option>
+                            <option value="3">
+                                Table 3
+                            </option>
+                            <option value="4">
+                                Table 4
+                            </option>
+                            <option value="5">
+                                Table 5
+                            </option>
+                        </select>
+                    </div>
+                    <div id="deliverySection" class="hidden">
+                        <label class="block text-xs uppercase tracking-wider text-gray-500 mb-2">
+                            Delivery Address
+                        </label>
+                        <input
+                        type="text"
+                        id="deliveryAddress"
+                        class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white"
+                        placeholder="Enter delivery address"
+                        >
+                    </div>
+                    <div>
                         <label class="block text-xs uppercase tracking-wider text-gray-500 mb-2">Notes (Optional)</label>
                         <textarea id="orderNotes" rows="2" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-[#d4a574] transition-colors resize-none" placeholder="Any special requests..."></textarea>
                     </div>
@@ -670,6 +721,9 @@
             const name = document.getElementById('customerName').value.trim();
             const phone = document.getElementById('customerPhone').value.trim();
             const notes = document.getElementById('orderNotes').value.trim();
+            const orderType =document.getElementById("orderType").value;
+            const tableNumber =document.getElementById("tableNumber").value;
+            const deliveryAddress =document.getElementById("deliveryAddress").value;
             const btn = document.getElementById('submitBtn');
             const spinner = document.getElementById('btnSpinner');
 
@@ -687,25 +741,39 @@
                 const { error } = await supabaseClient
                     .from('orders')
                     .insert([
+                        // {
+                        //     customer_name: name,
+                        //     customer_phone: phone,
+                        //     items: cart,
+                        //     total_amount: total,
+                        //     notes: notes || null,
+                        //     status: 'pending'
+                        // }
                         {
                             customer_name: name,
                             customer_phone: phone,
                             items: cart,
                             total_amount: total,
                             notes: notes || null,
-                            status: 'pending'
-                        }
+                            status:'pending',
+                            order_type: orderType,
+                            table_number:
+                            orderType === "dine_in"
+                            ? tableNumber
+                            : null,
+                            delivery_address:
+                            orderType === "delivery"
+                            ? deliveryAddress
+                            : null
+                            }
                     ]);
-
                 if (error) throw error;
-
                 showToast('Order Placed!', 'We will contact you shortly to confirm.');
                 cart = [];
                 updateBadge();
                 renderCart();
                 document.getElementById('orderForm').reset();
                 setTimeout(toggleCart, 2000);
-
             } catch (err) {
                 console.error(err);
                 showToast('Error', 'Could not place order. Please try again.');
@@ -1032,6 +1100,19 @@
                 }
             });
         });
+        function changeOrderType(){
+            const type=document.getElementById("orderType").value;
+            const table=document.getElementById("tableSection");
+            const delivery=document.getElementById("deliverySection");
+            if(type==="delivery"){
+                table.classList.add("hidden");
+                delivery.classList.remove("hidden");
+            }
+            else{
+                table.classList.remove("hidden");
+                delivery.classList.add("hidden");
+            }
+        }
     </script>
 </body>
 </html>

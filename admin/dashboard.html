@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Eazope Coffee - Admin Dashboard</title>
+
+    <link rel="stylesheet" href="dashboard.css">
+    <script src="../config.js"></script>
+
+    <!-- Supabase CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+
+<body>
+
+<header class="header">
+    <div>
+        <h1>☕ Eazope Coffee</h1>
+        <p>Order Management Dashboard</p>
+    </div>
+
+    <div class="admin-status">
+        <span class="online-dot"></span>
+        Live System
+    </div>
+</header>
+
+
+<section class="stats">
+
+    <div class="stat-card">
+        <h3>Total Orders</h3>
+        <span id="totalOrders">0</span>
+    </div>
+
+    <div class="stat-card pending">
+        <h3>Pending</h3>
+        <span id="pendingOrders">0</span>
+    </div>
+
+    <div class="stat-card preparing">
+        <h3>Preparing</h3>
+        <span id="preparingOrders">0</span>
+    </div>
+
+    <div class="stat-card ready">
+        <h3>Ready</h3>
+        <span id="readyOrders">0</span>
+    </div>
+
+</section>
+
+
+
+<section class="controls">
+
+    <input 
+        type="text" 
+        id="searchInput"
+        placeholder="Search customer name or phone..."
+    >
+
+
+    <select id="typeFilter">
+
+        <option value="all">
+            All Orders
+        </option>
+
+        <option value="dine_in">
+            🍽 Dine In
+        </option>
+
+        <option value="delivery">
+            🚚 Delivery
+        </option>
+
+    </select>
+
+
+
+    <select id="statusFilter">
+
+        <option value="all">
+            All Status
+        </option>
+
+        <option value="pending">
+            Pending
+        </option>
+
+        <option value="preparing">
+            Preparing
+        </option>
+
+        <option value="ready">
+            Ready
+        </option>
+
+        <option value="completed">
+            Completed
+        </option>
+
+    </select>
+
+
+
+    <select id="tableFilter">
+
+        <option value="all">
+            All Tables
+        </option>
+
+    </select>
+
+
+</section>
+
+
+
+
+<main>
+
+    <h2>Orders</h2>
+
+
+    <div id="ordersContainer" class="orders-container">
+
+        <!-- Orders will appear here -->
+
+    </div>
+
+
+</main>
+
+
+
+<script src="dashboard.js"></script>
+
+</body>
+</html>
